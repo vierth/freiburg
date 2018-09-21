@@ -1,11 +1,14 @@
-# Let's run the analysis again, but this time with the federalist papers
-import re, nltk, os, sys, platform
-from pandas import DataFrame
+'''
+This script will perform PCA-based stylometric analysis on any files loaded
+into a corpus folder found in the same directory.
+'''
+import re, os, sys, platform
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import normalize
 from sklearn.decomposition import PCA
 
+# Plotting libraries
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.font_manager
@@ -13,48 +16,64 @@ import matplotlib.font_manager
 # Word or character tokenization?
 tokenizeMethod = "char" # use "word" for word based
 
-# Types of labels for documents in the corpus
-labelTypes = ('title', 'dynasty', 'siku', 'sikusub', 'author')
-
-# Color Value:
-colorValue = 2 # Index of label to use for color
-
-# Label Valeu
-labelValue = 0 # Index of label to use for labels
+# Size of n-grams:
+ngrams = 1 # 1 will look at one character at a time, 2 will look at two, etc.
 
 # Limit the number of words to look at
-commonWords = 1000 # Set to None if you want to look at all words or use custom vocab
+commonWords = 500 # Set to None if you want to look at all words or use custom vocab
 
 # Set the vocabulary you are interested in
 limitVocabulary = None # None will not use a vocab list
-# limitVocabulary = "之 了 不 的 得 人".split(" ")
+# limitVocabulary = "之 了 不 的 得 人".split(" ") # Uncomment to use specific vocab
 
-# Analysis type. PCA or HCA
-analysisType = "PCA"
+# Types of labels for documents in the corpus
+labelTypes = ('title', 'dynasty', 'siku', 'sikusub', 'author')
 
-# How many components?
-pcaComponents = 2
+# Index of label used to set Color:
+colorValue = 2 # Index of label to use for color. Here 2 points to "siku"
+
+# Index of label to use for plot labels (if points are labeled)
+labelValue = 0 # Index of label to use for labels. Here 0 points to "title"
 
 # Point size (set to integer)
 pointSize = 8
 
-# Show point labels:
-pointLabels = False
+# Show point labels (add labels for each text):
+pointLabels = False # True or False
 
-# Plot loadings
-plotLoadings = False
+# Plot loadings (write the characters tot he plot)
+plotLoadings = False # True or False
 
-# Hide points:
-hidePoints = False
+# Hide points (useful for seeing loadings better):
+hidePoints = False # True or False
+
+# Output file info (dimensions are in inches (width, height)):
+outputDimensions = (10, 7.5)
+
+# Output file extension determines output type. Save as a pdf if you want to edit in illustator
+# PDF Output on mac is very large, but just opening and saving a copy in illustrator will fix this
+outputFile = "myfigure.tif"
+
+# How many components?
+pcaComponents = 2 # Only useful for digging even deeper in the data
+# Input folder
+corpusFolder = "corpus"
+# Items to remove from consideration:
+removeItems = "? , . ' \" 。 《 》 ， 、 【 】 ！ ？ “ ” ： ； ＜ （ ） ( ) - 「 」 〔 〕 ＞".split(" ")
+
+
 
 # Set the font
 if platform.system() == "Darwin":
     font = matplotlib.font_manager.FontProperties(fname="/System/Library/Fonts/STHeiti Medium.ttc")
+    matplotlib.rcParams['pdf.fonttype'] = 42
 elif platform.system() == "Windows":
     font = matplotlib.font_manager.FontProperties(fname="C:\\Windows\\Fonts\\simsun.ttc")
 elif platform.system() == "Linux":
     # This assumes you have wqy zenhei installed
     font = matplotlib.font_manager.FontProperties(fname="/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc")
+
+
 
 # Extra modules will be loaded if you want to parse into words.
 if tokenizeMethod == "word":
@@ -67,8 +86,8 @@ if tokenizeMethod == "word":
         sys.exit()
 
 # Function to clean the text
-def clean(text):
-    removeitems = "? , . ' \" 。 《 》 ， 、 【 】 ！ ？ “ ” ： ； ＜ （ ） ( ) - 「 」 〔 〕 ＞".split(" ")
+def clean(text, removeitems):
+    
     for item in removeitems:
         text = text.replace(item, "")
     text = re.sub("\s+", "", text)
@@ -92,14 +111,14 @@ print("Loading, cleaning, and tokenizing")
 texts = []
 labels = []
 
-for root, dirs, files in os.walk("corpus"):
+for root, dirs, files in os.walk(corpusFolder):
     for i, f in enumerate(files):
         # add the labels to the label list
         labels.append(f[:-4].split("_"))
 
         # Open the text, clean it, and tokenize it
         with open(os.path.join(root,f),"r", encoding='utf8') as rf:
-            texts.append(tokenize(clean(rf.read())))
+            texts.append(tokenize(clean(rf.read(), removeItems)))
         
         if i == len(files) - 1:
             print(f"\r{i+1} of {len(files)} processed", end='\n', flush=True)
@@ -110,7 +129,7 @@ for root, dirs, files in os.walk("corpus"):
 
 
 print("Vectorizing")
-countVectorizer = TfidfVectorizer(max_features=commonWords, use_idf=False, vocabulary=limitVocabulary,  analyzer='word', token_pattern='\S+')
+countVectorizer = TfidfVectorizer(max_features=commonWords, use_idf=False, vocabulary=limitVocabulary,  analyzer='word', token_pattern='\S+', ngram_range=(ngrams, ngrams))
 countMatrix = countVectorizer.fit_transform(texts)
 print("Normalizing values")
 countMatrix = normalize(countMatrix)
@@ -121,7 +140,10 @@ print("Performing PCA")
 pca = PCA(n_components=2)
 myPCA = pca.fit_transform(countMatrix)
 
-print("Setting format")
+print("Setting plot info")
+# set the plot size
+plt.figure(figsize=outputDimensions)
+
 # find all the unique values for each of the label types
 uniqueLabelValues = [set() for i in range(len(labelTypes))]
 for labelList in labels:
@@ -177,4 +199,6 @@ if plotLoadings:
 # Let's add a legend! matplotlib will make this for us based on the data we 
 # gave the scatter function.
 plt.legend(prop=font)
+plt.savefig(outputFile)
+
 plt.show()
