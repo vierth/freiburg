@@ -42,16 +42,16 @@ pointSize = 8
 pointLabels = False
 
 # Plot loadings
-plotLoadings = True
+plotLoadings = False
 
 # Hide points:
-hidePoints = True
+hidePoints = False
 
 # Set the font
 if platform.system() == "Darwin":
     font = matplotlib.font_manager.FontProperties(fname="/System/Library/Fonts/STHeiti Medium.ttc")
 elif platform.system() == "Windows":
-    font = matplotlib.font_manager.FontProperties(fname="SimSun")
+    font = matplotlib.font_manager.FontProperties(fname="C:\\Windows\\Fonts\\simsun.ttc")
 elif platform.system() == "Linux":
     # This assumes you have wqy zenhei installed
     font = matplotlib.font_manager.FontProperties(fname="/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc")
@@ -62,7 +62,7 @@ if tokenizeMethod == "word":
         import jieba
     except ImportError:
         print("For word tokenizing, you will need to install the jieba library")
-        print("You can do so by running the following command:")
+        print("You can do so by running the following command (you may need to run as admin):")
         print("pip install jieba")
         sys.exit()
 
