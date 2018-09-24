@@ -63,7 +63,7 @@ outputDimensions = (10, 7.5) # Tuple of integers or floats
 
 # Output file extension determines output type. Save as a pdf if you want to edit in illustator
 # PDF Output on mac is very large, but just opening and saving a copy in illustrator will fix this
-outputFile = "myfigure.tif"
+outputFile = "myfigure.png"
 
 
 ##################################
