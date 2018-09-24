@@ -2,6 +2,11 @@
 This script will perform PCA-based stylometric analysis on any files loaded
 into a corpus folder found in the same directory.
 '''
+
+############################
+# Load necessary libraries #
+############################
+
 import re, os, sys, platform
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -13,29 +18,35 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.font_manager
 
+#########################
+# Adjustable Parameters # 
+#########################
 # Word or character tokenization?
 tokenizeMethod = "char" # use "word" for word based
 
 # Size of n-grams:
-ngrams = 1 # 1 will look at one character at a time, 2 will look at two, etc.
+ngrams = 1 # 1 will look at one character at a time, 2 will look at two, etc. # integer
 
 # Limit the number of words to look at
-commonWords = 500 # Set to None if you want to look at all words or use custom vocab
+commonWords = 500 # Integer. Set to None if you want to look at all words or use custom vocab
 
-# Set the vocabulary you are interested in
-limitVocabulary = None # None will not use a vocab list
-# limitVocabulary = "之 了 不 的 得 人".split(" ") # Uncomment to use specific vocab
+# Do you want to use a set vocabulary? If so, provide set limitVocab to True
+# and provide a filename for limitVocabularyFile.
+limitVocab = False # True or False
+
+# This value is only read if limitVocab is set to True.
+limitVocabularyFile = "vocab.txt"
 
 # Types of labels for documents in the corpus
-labelTypes = ('title', 'dynasty', 'siku', 'sikusub', 'author')
+labelTypes = ('title', 'dynasty', 'siku', 'sikusub', 'author') # tuple with strings
 
 # Index of label used to set Color:
-colorValue = 2 # Index of label to use for color. Here 2 points to "siku"
+colorValue = 2 # Index of label to use for color (integer). Here 2 points to "siku"
 
 # Index of label to use for plot labels (if points are labeled)
-labelValue = 0 # Index of label to use for labels. Here 0 points to "title"
+labelValue = 0 # Index of label to use for labels (integer). Here 0 points to "title"
 
-# Point size (set to integer)
+# Point size (integer)
 pointSize = 8
 
 # Show point labels (add labels for each text):
@@ -48,32 +59,124 @@ plotLoadings = False # True or False
 hidePoints = False # True or False
 
 # Output file info (dimensions are in inches (width, height)):
-outputDimensions = (10, 7.5)
+outputDimensions = (10, 7.5) # Tuple of integers or floats
 
 # Output file extension determines output type. Save as a pdf if you want to edit in illustator
 # PDF Output on mac is very large, but just opening and saving a copy in illustrator will fix this
 outputFile = "myfigure.tif"
 
+
+##################################
+# Adjustable, but can be ignored #
+##################################
+
 # How many components?
-pcaComponents = 2 # Only useful for digging even deeper in the data
+pcaComponents = 2 # More than two is useful for digging even deeper in the data
+
 # Input folder
 corpusFolder = "corpus"
-# Items to remove from consideration:
-removeItems = "? , . ' \" 。 《 》 ， 、 【 】 ！ ？ “ ” ： ； ＜ （ ） ( ) - 「 」 〔 〕 ＞".split(" ")
+
+# File with items to remove from consideration (each item to remove is on a line):
+removeItemsFile = "remove.txt"
 
 
+###########
+###########
+###########
+'''
+Nothing beyond this point in the script needs any adjustment, but feel free to
+explore it and make changes as you see fit! Changes will just require a bit
+more work to integrate.
+'''
+###########
+###########
+###########
 
-# Set the font
-if platform.system() == "Darwin":
-    font = matplotlib.font_manager.FontProperties(fname="/System/Library/Fonts/STHeiti Medium.ttc")
-    matplotlib.rcParams['pdf.fonttype'] = 42
-elif platform.system() == "Windows":
-    font = matplotlib.font_manager.FontProperties(fname="C:\\Windows\\Fonts\\simsun.ttc")
-elif platform.system() == "Linux":
-    # This assumes you have wqy zenhei installed
-    font = matplotlib.font_manager.FontProperties(fname="/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc")
 
+####################
+# Type Enforcement #
+####################
 
+# This section enforces the input values for all the adjustable variables. This
+# is to make sure the script isn't run incorrectly.
+
+# function to check values
+def valueChecker(varname, typeofobj, value):
+    if type(typeofobj) == type:
+        if typeofobj == bool and type(value) != typeofobj:
+            print(f"{varname} must be a {typeofobj} (True or False). Please fix to run script.")
+            sys.exit()
+        if type(value) != typeofobj:
+            print(f"{varname} must be {typeofobj}. Please fix to run script.")
+            sys.exec_info()
+            sys.exit() 
+    elif type(typeofobj) == tuple:
+        if type(value) != typeofobj[0] and type(value) != typeofobj[1]:
+            print(f"{varname} must be {typeofobj[0]} or {typeofobj[1]}. Please fix to run script.")
+            sys.exit() 
+
+# check values
+valueChecker('ngrams', int, ngrams)
+valueChecker('commonWords', (int, None), commonWords)
+valueChecker('limitVocab', bool, limitVocab)
+valueChecker('colorValue', int, colorValue)
+valueChecker('labelValue', int, labelValue)
+valueChecker('pointSize', int, pointSize)
+valueChecker('pointLabels', bool, pointLabels)
+valueChecker('plotLoadings', bool, plotLoadings)
+valueChecker('hidePoints', bool, hidePoints)
+valueChecker('outputFile', str, outputFile)
+valueChecker('pcaComponents', int, pcaComponents)
+valueChecker('corpusFolder', str, corpusFolder)
+valueChecker('removeItemsFile', str, removeItemsFile)
+
+# check tuples and internal values
+if type(labelTypes) != tuple:
+    print('labelTypes must be a tuple. Please fix to run script.')
+    sys.exit()
+else:
+    for lab in labelTypes:
+        valueChecker('labelType item', str, lab)
+
+if type(outputDimensions) != tuple:
+    print(f"outputDimensions must be {tuple}. Please fix to run the script")
+else:
+    for d in outputDimensions:
+        valueChecker("outerDimension value", (float, int), d)
+
+# Load in external files
+try:
+    removeItems = []
+    with open(removeItemsFile, "r", encoding='utf8') as rf:
+        removeItems = [item.strip() for item in rf.read().split("\n") if item != ""]
+except FileNotFoundError:
+    print(f"No file named {removeItemsFile} found. Please check filename or create the file.")
+    sys.exit()
+
+if limitVocab == True:
+    valueChecker('limitVocabularyFile', str, limitVocabularyFile)
+    try:
+        limitVocabulary = [] 
+        with open(limitVocabularyFile, "r", encoding='utf8') as rf:
+            limitVocabulary = [item.strip() for item in rf.read().split("\n") if item != ""]
+        if commonWords:
+            print(f"You are limiting analysis to the {commonWords} most common words but also using a set vocabulary.")
+            print("If you want to avoid unexpected behavior, set commonWords to None when limiting vocab.")
+    except FileNotFoundError:
+        print(f"No file named {limitVocabularyFile} found. Please check filename or create the file")
+        print("Defaulting to no limit on the vocabulary")       
+        limitVocabulary = None
+else:
+    limitVocabulary = None
+
+# Ensure corpus folder exists
+if not os.path.isdir(corpusFolder):
+    print(f"Could not find the corpus folder '{corpusFolder}'. Please double check.")
+    sys.exit()
+
+######################
+# Load extra modules #
+######################
 
 # Extra modules will be loaded if you want to parse into words.
 if tokenizeMethod == "word":
@@ -85,26 +188,34 @@ if tokenizeMethod == "word":
         print("pip install jieba")
         sys.exit()
 
-# Function to clean the text
+########################
+# Function definitions #
+########################
+
+# Function to clean the text. Remove desired characters and white space.
 def clean(text, removeitems):
-    
     for item in removeitems:
         text = text.replace(item, "")
     text = re.sub("\s+", "", text)
     return text
 
-# Function to tokenize the text. I've set it up so should have spaces between each token
+# Function to tokenize the text. This seperates the tokens with spaces
 def tokenize(text, tm = tokenizeMethod):
     if tm == "char":
         text = " ".join(list(text))
     elif tm == "word":
-        # this uses the jieba library (you will need to install it), but there are other
-        # good options out there, the best probably being stanford's parsers
+        # this uses the jieba library, but there are other good options
+        # the best probably being stanford's parsers
         # this will be VERY slow
         text = " ".join(jieba.cut(text))  
     else:
         print("Set tokenizationMethod to either char or word")
+        sys.exit()
     return text
+
+##############
+# Load Texts #
+##############
 
 print("Loading, cleaning, and tokenizing")
 # Go through each document in the corpus folder and save info to lists
@@ -124,9 +235,10 @@ for root, dirs, files in os.walk(corpusFolder):
             print(f"\r{i+1} of {len(files)} processed", end='\n', flush=True)
         else:
             print(f"\r{i+1} of {len(files)} processed", end='', flush=True)
-# if tokenizeMethod == "word":
-#     server.stop()
 
+####################
+# Perform Analysis #
+####################
 
 print("Vectorizing")
 countVectorizer = TfidfVectorizer(max_features=commonWords, use_idf=False, vocabulary=limitVocabulary,  analyzer='word', token_pattern='\S+', ngram_range=(ngrams, ngrams))
@@ -137,8 +249,23 @@ countMatrix = countMatrix.toarray()
 
 print("Performing PCA")
 # Lets perform PCA on the countMatrix:
-pca = PCA(n_components=2)
+pca = PCA(n_components=pcaComponents)
 myPCA = pca.fit_transform(countMatrix)
+
+
+##############
+# Plot Setup #
+##############
+
+# Set the font
+if platform.system() == "Darwin":
+    font = matplotlib.font_manager.FontProperties(fname="/System/Library/Fonts/STHeiti Medium.ttc")
+    matplotlib.rcParams['pdf.fonttype'] = 42
+elif platform.system() == "Windows":
+    font = matplotlib.font_manager.FontProperties(fname="C:\\Windows\\Fonts\\simsun.ttc")
+elif platform.system() == "Linux":
+    # This assumes you have wqy zenhei installed
+    font = matplotlib.font_manager.FontProperties(fname="/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc")
 
 print("Setting plot info")
 # set the plot size
@@ -175,6 +302,10 @@ colors = [colorDictionaries[colorValue][lab] for lab in uniqueColorLabels]
 
 if hidePoints:
     pointSize = 0
+
+###################
+# Create the plot #
+###################
 
 print("Plotting texts")
 for col, classNumber, lab in zip(colors, numberForClass, uniqueColorLabels):
