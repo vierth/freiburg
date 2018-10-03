@@ -7,7 +7,7 @@ into a corpus folder found in the same directory.
 # Load necessary libraries #
 ############################
 
-import re, os, sys, platform
+import re, os, sys, platform, json
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import normalize
@@ -17,6 +17,7 @@ from sklearn.decomposition import PCA
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.font_manager
+import matplotlib.colors
 
 #########################
 # Adjustable Parameters # 
@@ -38,7 +39,7 @@ limitVocab = False # True or False
 limitVocabularyFile = "vocab.txt"
 
 # Types of labels for documents in the corpus
-labelTypes = ('title', 'dynasty', 'siku', 'sikusub', 'author') # tuple with strings
+labelTypes = ('title', 'dynasty', 'siku', 'subcat', 'author') # tuple with strings
 
 # Index of label used to set Color:
 colorValue = 2 # Index of label to use for color (integer). Here 2 points to "siku"
@@ -277,10 +278,10 @@ for labelList in labels:
     for i, label in enumerate(labelList):
         uniqueLabelValues[i].add(label)
 
-# create color dictionaries for each of the texts
+# create color dictionaries for all labels
 colorDictionaries = []
 for uniqueLabels in uniqueLabelValues:
-    colorpalette = sns.color_palette("husl",len(uniqueLabels))
+    colorpalette = sns.color_palette("husl",len(uniqueLabels)).as_hex()
     colorDictionaries.append(dict(zip(uniqueLabels,colorpalette)))
 
 # Now we need the Unique Labels
@@ -318,11 +319,10 @@ if pointLabels:
         plt.annotate(str(lab[labelValue]),xy=datapoint, fontproperties=font)
 
 # Let's graph component loadings
+vocabulary = countVectorizer.get_feature_names()
+loadings = pca.components_
 if plotLoadings:
-    print("Rendering Loadings")
-    loadings = pca.components_
-    vocabulary = countVectorizer.get_feature_names()
-    
+    print("Rendering Loadings")    
     for i, word in enumerate(vocabulary):
         plt.annotate(word, xy=(loadings[0, i], loadings[1,i]), fontproperties=font)
     
@@ -332,4 +332,53 @@ if plotLoadings:
 plt.legend(prop=font)
 plt.savefig(outputFile)
 
+
+############################################
+# Output data for JavaScript Visualization #
+############################################
+
+data = []
+for datapoint in myPCA:
+    pcDict = {}
+    for i, dp in enumerate(datapoint):
+        pcDict[f"PC{str(i + 1)}"] = dp
+    data.append(pcDict)
+
+jsLoadings = []
+for i, word in enumerate(vocabulary):
+    temploading = {}
+    for j,dp in enumerate(loadings):
+        temploading[f"PC{str(j+1)}"] = dp[i]
+    jsLoadings.append([word, temploading])
+
+colorDictionaryList = []
+for cd in colorDictionaries:
+    cdlist = [v for v in cd.values()]
+    colorDictionaryList.append(cdlist)
+print(colorDictionaryList[0])
+
+colorstrings = json.dumps(colorDictionaryList)
+labelstrings = json.dumps(labels)
+valuetypes = json.dumps([k for k in data[0].keys()])
+datastrings = json.dumps(data)
+
+limitedlabeltypes = []
+for i, t in enumerate(labelTypes):
+    if len(uniqueLabelValues[i]) <= 20:
+        limitedlabeltypes.append(t)
+
+cattypestrings = json.dumps(limitedlabeltypes)
+loadingstrings = json.dumps(jsLoadings)
+stringlist = [f"var colorDictionaries = {colorstrings};", f"var labels = {labelstrings};",
+            f"var data = {datastrings};", f"var categoryTypes = {list(labelTypes)};", 
+            f"var loadings = {jsLoadings};", f"var valueTypes = {valuetypes};",
+            f"var limitedCategories = {limitedlabeltypes};"]
+
+
+with open("data.js", "w", encoding="utf8") as wf:
+    wf.write("\n".join(stringlist))
+
+
+
+# Show the plot
 plt.show()
