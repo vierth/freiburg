@@ -10,7 +10,6 @@ into a corpus folder found in the same directory.
 import re, os, sys, platform, json
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.preprocessing import normalize
 from sklearn.decomposition import PCA
 
 # Plotting libraries
@@ -37,6 +36,9 @@ limitVocab = False # True or False
 
 # This value is only read if limitVocab is set to True.
 limitVocabularyFile = "vocab.txt"
+
+# Do you want to use inverse document frequency (tf-idf)? False will use pure frequencies
+useidf = False # True or False
 
 # Types of labels for documents in the corpus
 labelTypes = ('title', 'dynasty', 'siku', 'subcat', 'author') # tuple with strings
@@ -242,10 +244,8 @@ for root, dirs, files in os.walk(corpusFolder):
 ####################
 
 print("Vectorizing")
-countVectorizer = TfidfVectorizer(max_features=commonWords, use_idf=False, vocabulary=limitVocabulary,  analyzer='word', token_pattern='\S+', ngram_range=(ngrams, ngrams))
+countVectorizer = TfidfVectorizer(max_features=commonWords, use_idf=useidf, vocabulary=limitVocabulary,  analyzer='word', token_pattern='\S+', ngram_range=(ngrams, ngrams))
 countMatrix = countVectorizer.fit_transform(texts)
-print("Normalizing values")
-countMatrix = normalize(countMatrix)
 countMatrix = countMatrix.toarray()
 
 print("Performing PCA")
